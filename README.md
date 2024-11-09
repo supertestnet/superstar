@@ -1,2 +1,2 @@
-# superstar
+# Superstar
 Bitcoin powered concert software
