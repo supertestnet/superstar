@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no">
+        <script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
+        <script src="https://supertestnet.github.io/nwcjs/nwcjs.js"></script>
+        <script src="https://bundle.run/browserify-cipher@1.0.1"></script>
+        <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
+        <script src="https://bundle.run/bech32@2.0.0"></script>
+        <script>
+            async function sha1( message ) {
+                var encoder = new TextEncoder();
+                var data = encoder.encode(message);
+                var hash = await window.crypto.subtle.digest("SHA-1", data);
+                var bytes = new Uint8Array( hash );
+                var hex = bytes.reduce( ( str, byte ) => str + byte.toString( 16 ).padStart( 2, "0" ), "" );
+                return hex;
+            }
+        </script>
+        <script>
+            var modalVanish = () => {
+                $( ".black-bg" ).classList.add( "hidden" );
+                $( ".modal" ).classList.add( "hidden" );
+            }
+            var showModal = content => {
+                $( ".modal" ).innerHTML = `<div class="x_modal" style="position: absolute;right: 1rem;top: 0.5rem;font-size: 2rem; cursor: pointer; color: black;" onclick="modalVanish()">&times;</div>`;
+                $( ".modal" ).innerHTML += `<div style="overflow-y: auto; max-height: 80vh; margin-top: 1.5rem;">${content}</div>`;
+                $( ".black-bg" ).classList.remove( "hidden" );
+                $( ".modal" ).classList.remove( "hidden" );
+            }
+            var createQR = content => {
+                var dataUriPngImage = document.createElement( "img" ),
+                s = QRCode.generatePNG( content, {
+                    ecclevel: "M",
+                    format: "html",
+                    fillcolor: "#FFFFFF",
+                    textcolor: "#000000",
+                    margin: 4,
+                    modulesize: 8,
+                });
+                dataUriPngImage.src = s;
+                dataUriPngImage.className = "qr_code";
+                dataUriPngImage.style.width = "100%";
+                return dataUriPngImage;
+            }
+            var showToast = content => {
+                $( '.toast' ).innerHTML = content;
+                $( '.toast' ).classList.add( "show" );
+                setTimeout( () => $( '.toast' ).classList.remove( "show" ), 3000 );
+            }
+        </script>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-size: 1.15rem;
+                font-family: Arial, sans-serif;
+            }
+            html {
+                max-width: 800px;
+                padding: 3rem 1rem;
+                margin: auto;
+                line-height: 1.25;
+                padding: 0;
+            }
+            body {
+                margin: 3rem 1rem;
+                word-wrap: break-word;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            h2 {
+                font-size: 1.5rem;
+            }
+            input {
+                line-height: 1.25;
+                width: 100%;
+                height: 1.8rem;
+                font-size: 1.15rem;
+                border: 1px solid grey;
+            }
+            .hidden {
+                display: none !important;
+            }
+            .create_concert_page .song {
+                border: 1px solid black;
+                border-radius: 1rem;
+                padding: 1rem;
+                padding-bottom: 2rem;
+                margin-bottom: 1rem;
+            }
+            .admin_page .songs {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            .admin_page .song {
+                display: flex;
+                align-items: flex-end;
+                border: 1px solid black;
+                border-radius: 1rem;
+                min-height: 10rem;
+                max-width: 100%;
+                background-size: cover;
+                background-position: 50% 50%;
+                background-repeat: no-repeat;
+                overflow: hidden;
+            }
+            .admin_page .song .song_title {
+                color: white;
+                min-height: 50%;
+                padding: 1rem;
+                display: flex;
+                align-items: flex-end;
+                background-image: linear-gradient(rgb(255,255,255,0), black);
+                width: 100%;
+            }
+            .image_and_btn {
+                display: flex;
+                justify-content: space-between;
+            }
+            .song_image {
+                margin-right: 1rem;
+            }
+            .plus_button, .minus_button {
+                display: inline-block;
+                border: 1px solid grey;
+                padding: 0px 5px;
+                cursor: pointer;
+                width: 2rem;
+                text-align: center;
+                vertical-align: top;
+                height: 1.8rem;
+                line-height: 1.8rem;
+            }
+            .admin_page .song_and_meta {
+                display: flex;
+                border: 1px solid black;
+                border-radius: 1rem;
+                margin: .5rem;
+                padding: 1rem;
+                flex-direction: column;
+                min-height: 10rem;
+                max-width: 15rem;
+            }
+            .admin_page .song_and_meta .sats_earned_div,
+            .admin_page .song_and_meta .top_sats_sent_div,
+            .admin_page .song_and_meta .top_comment {
+                border: 1px solid black;
+                padding: .5rem;
+                margin-bottom: 1rem;
+                text-align: center;
+            }
+            .admin_page .song_and_meta .sats_earned_div {
+                margin-top: 1rem;
+            }
+            .vote_btn {
+                margin-top: 1rem;
+            }
+            .black-bg {
+                width: 100%;
+                position: fixed;
+                top: 0;
+                left: 0;
+                background-color: black;
+                opacity: .5;
+                width: 100vw;
+                height: 100vh;
+            }
+            .modal {
+                position: fixed;
+                box-sizing: border-box;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%,-50%);
+                width: 90%;
+                max-width: 560px;
+                background-color: white;
+                border-radius: 1rem;
+                padding: 20px;
+                color: black;
+                text-align: center;
+                word-wrap: break-word;
+            }
+            .modal * {
+                color: black;
+            }
+            .modal input, .modal textarea {
+                max-width: 90%;
+            }
+            .copy_box {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                height: 2.2rem;
+            }
+            .copy_addy {
+                width: 100%;
+                max-width: 78%;
+                word-wrap: break-word;
+                background-color: #cccccc;
+                border: 1px solid black;
+                padding: .3rem;
+                height: 100%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: block;
+                user-select: none;
+            }
+            .copy_btn {
+                width: 100%;
+                max-width: 18%;
+                text-align: center;
+                background-color: #cccccc;
+                border: 1px solid black;
+                padding: .3rem;
+                height: 100%;
+                padding-top: 3%;
+                cursor: pointer;
+            }
+            .toast {
+                box-sizing: border-box;
+                visibility: hidden;
+                width: 250px;
+                margin-left: -125px;
+                background-color: rgb(97, 235, 52);
+                color: white;
+                text-align: center;
+                border-radius: 2px;
+                padding: 16px;
+                position: fixed;
+                z-index: 1;
+                left: 50%;
+                bottom: 30px;
+            }
+
+            .toast.show {
+                visibility: visible;
+                -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+                animation: fadein 0.5s, fadeout 0.5s 2.5s;
+            }
+
+            @-webkit-keyframes fadein {
+                from {bottom: 0; opacity: 0;}
+                to {bottom: 30px; opacity: 1;}
+            }
+
+            @keyframes fadein {
+                from {bottom: 0; opacity: 0;}
+                to {bottom: 30px; opacity: 1;}
+            }
+
+            @-webkit-keyframes fadeout {
+                from {bottom: 30px; opacity: 1;}
+                to {bottom: 0; opacity: 0;}
+            }
+
+            @keyframes fadeout {
+                from {bottom: 30px; opacity: 1;}
+                to {bottom: 0; opacity: 0;}
+            }
+            @media screen and (max-width: 600px) {
+            }
+        </style>
+        <script>
+            var $ = document.querySelector.bind( document );
+            var $$ = document.querySelectorAll.bind( document );
+            var url_params = new URLSearchParams( window.location.search );
+            var url_keys = url_params.keys();
+            var $_GET = {}
+            for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
+        </script>
+    </head>
+    <body>
+        <h1>Welcome to Superstar</h1>
+        <p>Create a bitcoin-powered concert</p>
+        <div class="create_concert_page">
+            <div class="nwc_form">
+                <h2>Create a concert</h2>
+                <p>Enter an NWC string</p>
+                <p><input class="nwc_string"></p>
+            </div>
+            <div class="songs_form">
+                <div class="songs"></div>
+                <p><button class="submit_songs">Submit</button></p>
+            </div>
+        </div>
+        <div class="admin_page hidden">
+            <h2>Shareable link</h2>
+            <p class="shareable_link"></p>
+            <h2>Songs</h2>
+            <p class="loading">loading...</p>
+            <div class="songs"></div>
+        </div>
+        <script>
+            var latest_tx_timestamp = 0;
+            var all_txs = {}
+            var payments_processed = [];
+            var waiting_to_process = [];
+            var findSong = name => {
+                var index_i_seek = -1;
+                $$( '.admin_page .song .song_title' ).forEach( ( item, index ) => {
+                    if ( item.innerText === name ) index_i_seek = index;
+                });
+                return index_i_seek;
+            }
+            var showPage = page => {
+                $( '.create_concert_page' ).classList.add( "hidden" );
+                $( '.admin_page' ).classList.add( "hidden" );
+                $( `.${page}` ).classList.remove( "hidden" );
+            }
+            var dominus = e => e.target.parentElement.parentElement.remove();
+            var doplus = () => {
+                if ( $( '.plus_button' ) ) {
+                    $( '.plus_button' ).classList.add( "minus_button" );
+                    $( '.plus_button' ).innerHTML = '-';
+                    $( '.plus_button' ).onclick = dominus;
+                    $( '.plus_button' ).classList.remove( "plus_button" );
+                }
+                var html = `
+                    <div class="song">
+                        <p>Song title</p>
+                        <input class="song_title">
+                        <p>Song image (url)</p>
+                        <div class="image_and_btn">
+                            <input class="song_image">
+                            <span class="plus_button">+</span>
+                        </div>
+                    </div>
+                `;
+                var div = document.createElement( "div" );
+                div.innerHTML = html;
+                div.getElementsByClassName( "plus_button" )[ 0 ].onclick = doplus;
+                $( '.songs_form .songs' ).append( div.firstElementChild );
+            }
+            doplus();
+            $( '.submit_songs' ).onclick = async () => {
+                var songs = [];
+                var nwc_string = $( '.nwc_string' ).value;
+                songs.push( nwc_string );
+                $$( '.songs_form .song_title' ).forEach( ( item, index ) => songs.push( [ item.value, $$( '.songs_form .song_image' )[ index ].value ] ) );
+                var url = window.location.protocol + "//" + window.location.hostname + window.location.pathname + `?concert=${btoa( JSON.stringify( songs ) )}`;
+                window.location.href = url + "&admin=true";
+            }
+            if ( $_GET[ "concert" ] ) {
+                if ( $_GET[ "admin" ] === "true" ) {
+                    var your_url = window.location.href.substring( 0, window.location.href.indexOf( "&" ) );
+                    $( '.shareable_link' ).innerText = your_url;
+                } else {
+                    $( '.admin_page h2' ).classList.add( "hidden" );
+                    $( '.shareable_link' ).classList.add( "hidden" );
+                }
+                showPage( 'admin_page' );
+                var concert_info = JSON.parse( atob( $_GET[ "concert" ] ) );
+                var nwc_string = concert_info[ 0 ];
+                var nwc_info = nwcjs.processNWCstring( nwc_string );
+                concert_info.splice( 0, 1 );
+                concert_info.forEach( item => {
+                    var html = `
+                        <div class="song_and_meta">
+                            <div class="song">
+                                <div class="song_title">${item[ 0 ]}</div>
+                            </div>
+                            <button class="vote_btn">Vote for this song</button>
+                            <div class="sats_earned_div"><span class="sats_earned">0</span> sats earned</div>
+                            <div class="top_sats_sent_div">Top amt sent: <span class="top_sats_sent">0</span> sats</div>
+                            <div class="top_comment">Top comment: None submitted</div>
+                        </div>
+                    `;
+                    var div = document.createElement( "div" );
+                    div.innerHTML = html;
+                    div.getElementsByClassName( "song" )[ 0 ].style.backgroundImage = `url("${item[ 1 ]}")`;
+                    div.getElementsByClassName( "vote_btn" )[ 0 ].onclick = async e => {
+                        var amnt = Number( prompt( `enter the number of sats you want to send with your vote` ) );
+                        if ( !amnt ) return alert( `Amount cannot be zero` );
+                        var cmmt = prompt( `Enter a comment you want to go with your vote` );
+                        showModal( `<p>Loading...</p>` );
+                        var hash = await sha1( $_GET[ "concert" ] );
+                        var total_permitted_size = 300;
+                        var size_of_first_element = 40 + 4; //the 4 counts the opening bracket, the two quotation marks, and the comma
+                        var size_of_second_element = e.target.parentElement.getElementsByClassName( "song_title" )[ 0 ].innerText.length + 3; //the 3 counts the two quotation marks and the comma
+                        var max_size_of_third_element = total_permitted_size - ( size_of_first_element + size_of_second_element + 3 ); //the 3 counts two quotation marks and the closing bracket
+                        if ( cmmt.length > max_size_of_third_element ) return alert( `your comment is too large, it can only be ${max_size_of_third_element} characters in length and your comment was ${cmmt.length} characters in length. Please shorten it and try again` );
+                        var desc = JSON.stringify([
+                            hash,
+                            e.target.parentElement.getElementsByClassName( "song_title" )[ 0 ].innerText,
+                            cmmt,
+                        ]);
+                        var delay_tolerance = 6;
+                        var invoice_info = await nwcjs.makeInvoice( nwc_info, amnt, desc, delay_tolerance );
+                        try {
+                            var invoice = invoice_info.result.invoice || invoice_info.result.bolt11;
+                            waiting_to_process.push( invoice );
+                            var url = "lightning:" + invoice;
+                            var a = document.createElement( "a" );
+                            a.href = url;
+                            a.target = "_blank";
+                            a.append( createQR( invoice.toUpperCase() ) );
+                            var prep_div = document.createElement( "div" );
+                            prep_div.append( a );
+                            var div_html = prep_div.innerHTML;
+                            showModal( `<div style="max-width: 15rem; margin: auto;">${div_html}<div class="copy_box"><input class="copy_addy" value="${invoice}" disabled=""> <span>&nbsp;</span><div class="copy_btn">⎘</div></div></div>` );
+                            $( '.copy_btn' ).onclick = () => {
+                                var copytext = $( '.copy_addy' );
+                                copytext.select();
+                                copytext.setSelectionRange( 0, 99999 );
+                                navigator.clipboard.writeText( copytext.value );
+                                showToast( 'copied' );
+                            }
+                        } catch ( e ) {
+                            $( '.x_modal' ).click();
+                            return alert( 'there was an error, try again' );
+                        }
+                    }
+                    $( '.admin_page .songs' ).append( div.firstElementChild );
+                });
+            }
+            var txLoop = async () => {
+                console.log( 'looping...' );
+                var from = latest_tx_timestamp - 10;
+                if ( from < 0 ) from = 0;
+                var until = Math.floor( Date.now() / 1000 );
+                var limit = 10;
+                var offset = 0;
+                var unpaid = false;
+                var type = "incoming";
+                var delay_tolerance = 6;
+                var txs = await nwcjs.listTransactions( nwc_info, from, until, limit, offset, unpaid, type, delay_tolerance );
+                if ( $( '.loading' ) ) {
+                    $( '.loading' ).classList.add( "hidden" );
+                }
+                var txs_to_process = [];
+                try {
+                    txs.result.transactions.forEach( tx => {
+                        if ( payments_processed.includes( tx.payment_hash ) ) return;
+                        payments_processed.push( tx.payment_hash );
+                        if ( tx.settled_at > latest_tx_timestamp ) latest_tx_timestamp = tx.settled_at;
+                        all_txs[ tx.payment_hash ] = tx;
+                        var desc = tx.description;
+                        var amt = Math.floor( tx.amount / 1000 );
+                        txs_to_process.push( [ amt, desc ] );
+                        var invoice = tx.invoice || tx.bolt11;
+                        if ( waiting_to_process.includes( invoice ) ) {
+                            $( '.x_modal' ).click();
+                            waiting_to_process.splice( waiting_to_process.indexOf( "invoice" ), 1 );
+                        }
+                    });
+                } catch ( e ) {}
+                txs_to_process.forEach( async tx => {
+                    var json = null;
+                    try {
+                        var json = JSON.parse( tx[ 1 ] );
+                    } catch ( e ) {}
+                    if ( !json ) return;
+                    var real_sha = await sha1( $_GET[ "concert" ] );
+                    if ( json[ 0 ] !== real_sha ) return;
+                    //find song
+                    var expected_song_name = json[ 1 ];
+                    var matching_song = findSong( expected_song_name );
+                    if ( matching_song < 0 ) return;
+                    $$( '.sats_earned' )[ matching_song ].innerText = Number( $$( '.sats_earned' )[ matching_song ].innerText ) + tx[ 0 ];
+                    if ( tx[ 0 ] <= Number( $$( '.top_sats_sent' )[ matching_song ].innerText ) ) return;
+                    $$( '.top_sats_sent' )[ matching_song ].innerText = tx[ 0 ];
+                    $$( '.top_comment' )[ matching_song ].innerText = `Top comment: ${json[ 2 ]}`;
+                    var boxes = [];
+                    $$( '.admin_page .song_and_meta' ).forEach( song => boxes.push( song ) );
+                    $( '.admin_page .songs' ).innerHTML = ``;
+                    boxes.sort( ( a, b ) => {
+                        return Number( a.getElementsByClassName( "sats_earned" )[ 0 ].innerText ) < Number( b.getElementsByClassName( "sats_earned" )[ 0 ].innerText );
+                    });
+                    boxes.forEach( song => $( '.admin_page .songs' ).append( song ) );
+                });
+                $( '.admin_page .songs' ).classList.remove( "hidden" );
+                setTimeout( txLoop, 10000 );
+            }
+            {
+                $( '.admin_page .songs' ).classList.add( "hidden" );
+                setTimeout( txLoop, 1000 );
+            }
+        </script>
+        <div class="black-bg hidden" onclick="modalVanish();"></div>
+        <div class="modal hidden"></div>
+        <div class="toast"></div>
+    </body>
+</html>
